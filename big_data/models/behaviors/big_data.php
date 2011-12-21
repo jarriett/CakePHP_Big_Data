@@ -1,5 +1,8 @@
 <?php
-  
+  /**************************************************
+  * Author: Jarriett K Robinson
+  * Email: jarriett@gmail.com
+  */
   class BigDataBehavior extends ModelBehavior
   {
       var $Model;
