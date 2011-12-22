@@ -60,7 +60,7 @@ The previous function call returns an associative array, where each object's key
 
 h2. Authors
 
-* Jarriett K. Robinson [jarriett (at) gmail.com], http://github.com/jarriett
+* Jarriett K. Robinson [jarriett (at) gmail.com] , http://github.com/jarriett
 
 h2. License
 
