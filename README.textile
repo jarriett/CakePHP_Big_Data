@@ -32,14 +32,17 @@ h2. Issues
 h2. Usage
 
 Have your model use the behavior:
-@<?php
-	       class Frog extends AppModel{
-		       var $actsAs = array('BigData');
-		   }
-     ?>
-@	 
+<pre><code>
+<?php
+	class Frog extends AppModel
+	{
+	       var $actsAs = array('BigData');
+	}
+?>
+</code></pre>
+	 
 Now to insert 100,000 rows to the database in one database call, do the following:
-
+<pre><code>
 	for($i=0;$i <= 100000; $i++)
 	{
 		$frog = array();
@@ -50,12 +53,12 @@ Now to insert 100,000 rows to the database in one database call, do the followin
 		$this->Frog->addToBundle($frog);
 	}
 	$this->Frog->saveBundle();
-* Note: If a unique key exists on the database table, by default any rows matching the unique key will be updated,
-
+//* Note: If a unique key exists on the database table, by default any rows matching the unique key will be updated,
+</code></pre>
 To fetch a hashed result set from the database, call the fetchHashedResult() function as demonstrated below:
-
+<pre><code>
 		$frog_hash = $this->Frog->fetchHashedResult(array('conditions' => array('Frog.species_id' => 7), 'fields' => array('Frog.name', 'Frog.color'), 'key' => array('Frog.name', 'Frog.color')));
-
+</code></pre>
 The previous function call returns an associative array, where each object's key is <Frog.name> + <Frog.color>.  If you would like to md5 the key, can add the 'useHash' => true value to the parameter array.
 
 h2. Authors
