@@ -32,7 +32,7 @@ h2. Issues
 h2. Usage
 
 Have your model use the behavior:
-@	<?php
+@<?php
 	       class Frog extends AppModel{
 		       var $actsAs = array('BigData');
 		   }
