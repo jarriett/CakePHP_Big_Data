@@ -32,12 +32,12 @@ h2. Issues
 h2. Usage
 
 Have your model use the behavior:
-	<?php
+@	<?php
 	       class Frog extends AppModel{
 		       var $actsAs = array('BigData');
 		   }
      ?>
-	 
+@	 
 Now to insert 100,000 rows to the database in one database call, do the following:
 
 	for($i=0;$i <= 100000; $i++)
