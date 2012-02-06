@@ -34,7 +34,8 @@ h2. Usage
 Have your model use the behavior:
 <pre><code>
 <?php
-	class Frog extends AppModel
+        App::Import('Model', 'BigDataModel');
+	class Frog extends BigDataModel
 	{
 	       var $actsAs = array('BigData');
 	}
