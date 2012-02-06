@@ -1,13 +1,14 @@
 <?php
-  /**************************************************
-  * Author: Jarriett K Robinson
-  * Email: jarriett@gmail.com
-  */
+  /******************************************
+  // Author: Jarriett K Robinson
+  // Email: jarriett@gmail.com
+  ******************************************/
+  
   class BigDataBehavior extends ModelBehavior
   {
       var $Model;
       
-      var $bundle = array();
+    //  var $bundle = array();
       
       var $COMPARISON_SYMBOLS = array( 
                                      '<=' => '<=', 
@@ -20,11 +21,25 @@
                                      '=' => '='
                                      );
       var $KEYWORDS = array("OR", "NOT");
+      
+      var $primary_key_field;
+      
+      var $debugging;
                                      
       public function setup(&$Model, $config = array())
       {
         $this->Model = $Model;
         $bundle  = array($Model->name => array()); 
+        
+        //determine the primary key field
+        foreach($this->Model->_schema as $col => $info)
+        {
+          if(!empty($info['key']) && $info['key'] == 'primary')
+        	{
+        		$this->primary_key_field = $col;
+        		break;
+        	}
+        }
       }
       
       public function addToBundle(&$m, array &$model_data = array())
@@ -32,33 +47,33 @@
           $this->Model = $m;
          if(empty($model_data[$m->name]) && !is_array($model_data[$m->name]))
           {
-             $this->bundle[] = $this->fillCompleteSchema($model_data);  
+             $this->Model->bundle[] = $this->fillCompleteSchema($model_data);  
           }
           else
           {
-              $this->bundle[] = $this->fillCompleteSchema($model_data[$m->name]);
+              $this->Model->bundle[] = $this->fillCompleteSchema($model_data[$m->name]);
           }      
       }
       
       public function saveBundle(&$model, $max_payload = 100000, $replace = true)
       {
           $this->Model = $model; 
-          if(count($this->bundle) > $max_payload)
+          if(count($this->Model->bundle) > $max_payload)
           {
-              $chunked = array_chunk($this->bundle, $max_payload);
-              $this->bundle = null;
-              $this->bundle = array();
+              $chunked = array_chunk($this->Model->bundle, $max_payload);
+              $this->Model->bundle = null;
+              $this->Model->bundle = array();
               foreach($chunked as $chunk)
               {
-                  $this->bulkSave($model, $chunk);
+                  $this->bulkSave($model, $chunk, $replace);
               }          
           }
           else
           {
-            $this->bulkSave($model, $this->bundle, $replace);
+            $this->bulkSave($model, $this->Model->bundle, $replace);
           }
-          $this->bundle = null;
-          $this->bundle = array();    
+          $this->Model->bundle = null;
+          $this->Model->bundle = array();    
       }
       
       function bulkSave(&$model, array &$datas = array(), $replace = true)
@@ -66,18 +81,18 @@
           $this->Model = $model;
           $name = $this->Model->name;
           $table = Inflector::tableize($name);
-          $field_names = array_keys($this->Model->_schema);     
+          $field_names = array_keys($this->Model->_schema);
           $field_data = array();
           foreach($field_names as $field_name)
           {
               $field_data[$field_name] = array();
           }           
           $save_cols = array();
-          $save_keys = array_keys($datas[0]);
+          !empty($datas[0]) && is_array($datas[0]) ? $save_keys = array_keys($datas[0]) : $save_keys = array();
 
           foreach($field_names as $_col)
           {
-              if(in_array($_col, $save_keys))
+              if(is_array($save_keys) && in_array($_col, $save_keys))
               {
                   $save_cols[] = $_col;
               }
@@ -105,13 +120,24 @@
                        
                    }                   
               }           
-              $values = "VALUES(";            
-              $basecount = count($datas[0]);            
+              $values = "VALUES(";   
+              
+         
+              $basecount = count($datas[0]);  //basecount is the amount of elements in the first object.  All model objects must have the same number of properties
+              
+              //the model object cannot have more properties than columns specified on the database schema
+              if($basecount > count($this->Model->_schema))
+              {
+                  throw new Exception("ERROR - The dataset cannot have more properties than there are columns on the database table.  Available columns: " . array_keys($this->Model->_schema) . " - Submitted properties: " . array_keys($datas[0]));
+              }
+                         
               foreach($datas as $data)
               {
                   if(count($data) != $basecount)
                   {   
-                      throw new Exception("ERROR - Each dataset to be saved must contain the same number of values: BigData->bulkSave() - Base Count: {$basecount} : Columns - ".implode(",",array_keys($datas[0]))." - Submitted Data: ".implode(",",array_keys($data)));
+                      echo "\n-------------------------------------------------------------------------------------------------\n";
+                      echo ("\nWARNING - ".$this->Model->name."->BigData->bulkSave() - Each dataset to be saved must contain the same number of values: BigData->bulkSave() - Base Count: {$basecount} : Columns - ".implode(",",array_keys($datas[0]))." - Submitted Data: ".implode(",",array_keys($data))) ."\n";
+                      echo "\n-------------------------------------------------------------------------------------------------\n";
                   }
                   foreach($data as $field_name => $value)
                   {
@@ -127,7 +153,7 @@
                  foreach($save_cols as $col)
                  {   
                  
-                     if((is_null($field_data[$col][$cnt]) ||$field_data[$col][$cnt] == 'NULL')  && $field_data[$col][$cnt] !== 0)
+                     if((empty($field_data[$col][$cnt]) ||$field_data[$col][$cnt] == 'NULL')  && $field_data[$col][$cnt] != 0)
                      {
                          $values .= 'NULL'; 
                      }
@@ -183,14 +209,21 @@
                
               }
               
-              $sql .= ";";
+              $sql .= ";"; 
+              
+              //if debugging on, print query
+              if($this->debugging == true)
+              {
+                  echo "\nDEBUGGING - BigData->bulkSave() query for ".$this->Model->name."\n------------------------------------------------------------------------------------------------------\n"
+                            . $sql. "\n------------------------------------------------------------------------------------------------------\n";
+              }
               $this->Model->query($sql);
           }
       }
       
       public function getBundle()
       {
-          return $this->bundle;
+          return $this->Model->bundle;
       }
       
       /**
@@ -266,9 +299,10 @@
                   }
               }
           }
-          if(!empty($query['conditions']) && is_array($query['conditions']))
+          
+          if(array_key_exists('conditions', $query) && is_array($query['conditions']))
           {
-              if(!is_array($query['conditions'][0]))
+              if( !empty($query['conditions'])&& !is_array($query['conditions'][0]))
               {
                   $i = 0;
                   foreach($query['conditions'] as $col => $value)
@@ -365,7 +399,13 @@
               $limitStr = "LIMIT ".$query['limit'];
           }
           
-          $sql = 'SELECT '. $fieldStr. ', '. $keyStr.' FROM '.$table  . ' AS  '. $name. ' ' . $conditionStr . ' ' . $groupStr . ' ' . $limitStr;
+          $sql = 'SELECT '. $fieldStr. ', '. $keyStr.' FROM '.$table  . ' AS  '. $name. ' ' . $conditionStr . ' ' . $groupStr . ' ' . $limitStr .";";
+          
+          if($this->debugging == true)
+          {
+              echo "\nDEBUGGING - BigData->fetchHashedResult() query for ". $this->Model->name. "\n------------------------------------------------------------------------------------------------------\n"
+                                                                                                                                                        .$sql."\n------------------------------------------------------------------------------------------------------\n";
+          }
 
           $results = $this->Model->query($sql);
           
@@ -468,17 +508,50 @@
       
       private function fillCompleteSchema(array $model_data)
       {
-          $data_keys = array_keys($model_data);
           $missingFields = array();
-          $field_names = array_keys($this->Model->_schema);   
+          $field_names = array_keys($this->Model->_schema);  
+          $data_keys = array_keys($model_data);
           foreach($field_names as $field_name)
           {    
-            if(!in_array($field_name, $data_keys) && $this->Model->_schema[$field_name]['key'] != 'primary')
+            if(!in_array($field_name, $data_keys))
             {
-               $missingFields[$field_name] = $this->generateEmptyValue($field_name); 
-            }  
-          }                                
-          return array_merge($model_data, $missingFields);
+                //==========================================================================================
+                // Note:  If the primary key is not included, it will not be added.  However, if the primary key field
+                //            is included, it will not be removed either.  This key would simply be used to update on duplicate key
+                //==========================================================================================
+                if(array_key_exists('key', $this->Model->_schema[$field_name]))
+                {
+                    if($this->Model->_schema[$field_name]['key'] == 'primary') 
+                    {
+                        //skip primary keys
+                    }
+                    else
+                    {
+                      $missingFields[$field_name] = $this->generateEmptyValue($field_name);   
+                    }
+                }
+                else
+                {
+                   $missingFields[$field_name] = $this->generateEmptyValue($field_name); 
+                }  
+           }   
+          }            //clean the object by removing illegitimate fields                 
+          return $this->removeRogueFields(array_merge($model_data, $missingFields));
+      }
+      
+      private function removeRogueFields(array $model_data)
+      {
+          $clean_data = array();
+          $schema_keys = array_keys($this->Model->_schema);
+          foreach($model_data as $key => $value)
+          {
+              // only add fields that actually exist on the schema - avoid MySQL column does not exist exceptions
+              if(in_array($key, $schema_keys))
+              {
+                  $clean_data[$key] = $value;
+              }
+          }
+          return $clean_data;
       }
       
     private function makeSafe($text)
@@ -550,78 +623,24 @@
         }
      }
      
-     
-     //////////////////////////////////////////////////////////////////////
-     var $insert = array();
-     var $update = array();
-     public function addToInsert(&$m, array &$model_data = array())
+     public function setDebugging($debugging = false)
      {
-     	$this->Model = $m;
-     	if(empty($model_data[$m->name]) && !is_array($model_data[$m->name]))
-     	{
-     		$this->insert[] = $this->fillCompleteSchema($model_data);
-     	}
-     	else
-     	{
-     		$this->insert[] = $this->fillCompleteSchema($model_data[$m->name]);
-     	}
-     }
-     public function addToUpdate(&$m, array &$model_data = array())
-     {
-     	$this->Model = $m;
-     	if(empty($model_data[$m->name]) && !is_array($model_data[$m->name]))
-     	{
-     		$this->update[] = $this->fillCompleteSchema($model_data);
-     	}
-     	else
-     	{
-     		$this->update[] = $this->fillCompleteSchema($model_data[$m->name]);
-     	}
+         $this->debugging = $debugging;
      }
      
-     public function saveInsert(&$model, $max_payload = 100000, $replace = true)
+     public function getDebugging()
      {
-     	if(empty($this->insert) || count($this->insert) == 0) return;
-     	
-     	$this->Model = $model;
-     	if(count($this->insert) > $max_payload)
-     	{
-     		$chunked = array_chunk($this->insert, $max_payload);
-     		$this->insert = null;
-     		$this->insert = array();
-     		foreach($chunked as $chunk)
-     		{
-     			$this->bulkSave($model, $chunk);
-     		}
-     	}
-     	else
-     	{
-     		$this->bulkSave($model, $this->insert, $replace);
-     	}
-     	$this->insert = null;
-     	$this->insert = array();
+         return $this->debugging;
      }
-     public function saveUpdate(&$model, $max_payload = 100000, $replace = true)
-     {
-     	if(empty($this->update) || count($this->update) == 0) return;
-     	
-     	$this->Model = $model;
-     	if(count($this->update) > $max_payload)
-     	{
-     		$chunked = array_chunk($this->update, $max_payload);
-     		$this->update = null;
-     		$this->update = array();
-     		foreach($chunked as $chunk)
-     		{
-     			$this->bulkSave($model, $chunk);
-     		}
-     	}
-     	else
-     	{
-     		$this->bulkSave($model, $this->update, $replace);
-     	}
-     	$this->update = null;
-     	$this->update = array();
-     }
+     
+    private function is_associative_array($a)
+    {
+        foreach(array_keys($a) as $key)
+        {
+            if (!is_int($key)) return TRUE;
+        }
+        return FALSE;
+    }
+
   }
 ?>
